@@ -34,7 +34,12 @@ def snapshot(**changes):
 
 
 def action(value):
-    return ReviewCompletionGate().evaluate("review report is publishable", value).action
+    evaluation = ReviewCompletionGate().evaluate("review report is publishable", value)
+    if evaluation.ok:
+        return "achieved"
+    if evaluation.impossible:
+        return "failed"
+    return "block"
 
 
 def test_complete_high_risk_report_is_achieved():
