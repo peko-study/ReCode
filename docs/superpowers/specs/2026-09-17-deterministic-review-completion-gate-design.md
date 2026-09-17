@@ -16,6 +16,7 @@ app/
   review/
     __init__.py
     completion_gate.py
+    goal.py
   runtime/
     goal.py                 # 保留通用 GoalController，不写审查规则
 tests/
@@ -47,7 +48,7 @@ Pydantic 负责类型、必填字段、枚举和值域。空白字符串（如�
 
 1. 将原始 `snapshot` 用 `ReviewCompletionSnapshot.model_validate()` 解析。解析失败代表调用方提供无效输入，返回 `GoalEvaluation(ok=False, impossible=True)`，从而得到 `failed`。
 2. `prefilter_completed` 为 `False` 时返回 `block`。
-3. 检查恰好存在 security、consistency、test_impact 三份 AgentReport；遗漏、重复或未知 Agent 均返回 `block`。
+3. Pydantic 枚举会把未知 Agent 作为无效输入并在步骤 1 返回 `failed`。对于成功解析的报告，检查恰好存在 security、consistency、test_impact 三份 AgentReport；遗漏或重复均返回 `block`。
 4. 每份 `completed=False` 的报告必须有非空 warning；否则返回 `block`。有 warning 的单 Agent 失败可继续。
 5. 若三个专职 Agent 都未完成，则工作流无法取得审查结果，返回 `failed`；这与后续核心工作流的失败语义一致。
 6. `aggregation_completed` 为 `False` 时返回 `block`。
@@ -59,7 +60,7 @@ Gate 按首个失败条件给出稳定原因字符串，便于日志、测试和
 
 ## 控制器适配
 
-`ReviewGoalController` 是 `GoalController` 的窄适配层：默认完成条件为“review report is publishable”，内部注入 `ReviewCompletionGate`。它复用阶段 0 的事件、恢复、`block_cap`、`defer`、`limit` 与状态映射；新方法 `evaluate_review(snapshot, background_running=False)` 仅将结构化快照传入既有 `evaluate()`。
+`app/review/goal.py` 中的 `ReviewGoalController` 是 `GoalController` 的窄适配层：默认完成条件为“review report is publishable”，内部注入 `ReviewCompletionGate`。它复用阶段 0 的事件、恢复、`block_cap`、`defer`、`limit` 与状态映射；新方法 `evaluate_review(snapshot, background_running=False)` 仅将结构化快照传入既有 `evaluate()`。
 
 这使审查业务规则不污染通用目标状态机，也让阶段 2 的 workflow runtime 能继续通过同一协议调用 Gate。
 
@@ -86,7 +87,7 @@ Gate 按首个失败条件给出稳定原因字符串，便于日志、测试和
 6. 一个 Agent `completed=False` 且有 warning 时仍可 `achieved`；
 7. 一个 Agent 失败但没有 warning 时返回 `block`；
 8. 三个 Agent 均失败时返回 `failed`；
-9. 非法快照返回 `failed`；
+9. 非法快照（包括未知 Agent）返回 `failed`；
 10. `ReviewGoalController` 保留阶段 0 的 `defer` 与三种对外状态映射。
 
 验收命令：
