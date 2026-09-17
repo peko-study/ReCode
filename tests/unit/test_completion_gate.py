@@ -1,4 +1,5 @@
 from app.review.completion_gate import ReviewCompletionGate
+from app.review.goal import ReviewGoalController
 
 
 def finding(**changes):
@@ -72,3 +73,12 @@ def test_warning_allows_one_failure_but_not_unexplained_or_all_failures():
 
 def test_invalid_snapshot_fails():
     assert action({"report": {}, "added_lines": {}}) == "failed"
+
+
+def test_review_goal_controller_defaults_and_defers():
+    controller = ReviewGoalController()
+
+    assert controller.active is not None
+    assert controller.active.condition == "review report is publishable"
+    assert controller.evaluate_review(snapshot(), background_running=True).action == "defer"
+    assert controller.evaluate_review(snapshot()).action == "achieved"
